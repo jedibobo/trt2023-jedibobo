@@ -1,0 +1,15 @@
+*.jpg
+*.png 
+*.log
+*.json
+
+*.pth
+*.onnx
+*.engine
+*.so
+
+old-code/
+font/
+*.md
+*.pyc
+
