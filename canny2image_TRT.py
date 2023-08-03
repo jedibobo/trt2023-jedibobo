@@ -38,7 +38,7 @@ class hackathon():
             "unet": "diffusion_model",
             "vae": "first_stage_model"
         }
-        self.acc_clip_stage = True
+        self.acc_clip_stage = False
         self.acc_control_stage = True
         self.acc_unet_stage = True
         self.acc_vae_stage = True
