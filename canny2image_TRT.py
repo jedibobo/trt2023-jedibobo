@@ -40,7 +40,7 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = True
+        self.acc_clip_stage = False
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
@@ -301,10 +301,55 @@ class hackathon:
                 # unet输入包含controlNet的输出，所以input_names里面。由于controlNet的输出是一个长度为13的List，所以这个input_names,需要将对应变量的输入名，改成13个，例如control_1, control_2..control_13这样。
             # 再导出vae
             elif k == "vae":
-                model = temp_model
-                # vae调用的是decode,而导出onnx需要forward,所以这里做一个替换即可。
-                model.forward = model.decode
-                # 然后和上面一样，做onnx导出
+                # model = temp_model
+                # # vae调用的是decode,而导出onnx需要forward,所以这里做一个替换即可。
+                # model.forward = model.decode
+                # h = 32
+                # w = 48
+                # # control_net默认就是forwrad,不需要做什么操作了
+                # if not os.path.isfile("sd_vae_fp16.engine"):
+                #     z_in = torch.randn(1, 4, h, w, dtype=torch.float32).to("cuda")
+                #     output_names = ['vae_decode_out']
+                #     dynamic_table = {
+                #         "z_in": {0: "bs"},
+                #         "vae_decoder_out": {0: "bs"},
+                #     }
+
+                #     torch.onnx.export(
+                #         model,
+                #         z_in,
+                #         "./sd_vae.onnx",
+                #         export_params=True,
+                #         opset_version=17,
+                #         do_constant_folding=True,
+                #         keep_initializers_as_inputs=True,
+                #         input_names=["z_in"],
+                #         output_names=output_names,
+                #         dynamic_axes=dynamic_table,
+                #     )
+                #     os.system(
+                #         " polygraphy surgeon sanitize sd_vae.onnx --fold-constants --override-input-shapes 'z_in:[1,4,32,48]'  -o sd_vae_sanitize.onnx"
+                #     )
+                #     os.system(
+                #         "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
+                #     )
+
+                # with open("./sd_control_fp16.engine", "rb") as f:
+                #     engine_str = f.read()
+
+                # control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
+                #     engine_str
+                # )
+                # control_context = control_engine.create_execution_context()
+
+                # control_context.set_binding_shape(0, (1, 4, H // 8, W // 8))
+                # control_context.set_binding_shape(1, (1, 3, H, W))
+                # control_context.set_binding_shape(2, (1,))
+                # control_context.set_binding_shape(3, (1, 77, 768))
+                # self.model.control_context = control_context
+
+                # print("finished converting vae model")
+                # # 然后和上面一样，做onnx导出
             else:
                 model = None
 
