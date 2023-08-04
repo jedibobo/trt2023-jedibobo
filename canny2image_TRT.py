@@ -103,7 +103,10 @@ class hackathon:
                             "last_hidden_state": {0: "B"},
                         },
                     )
-
+                    if model is not None:
+                        del model
+                        torch.cuda.empty_cache()
+                        gc.collect()
                     os.system("python3 modify_clip_transformer_onnx_shape.py")
                     os.system(
                         "polygraphy surgeon sanitize sd_clip_transformer_onnx_reshape.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx"
@@ -116,7 +119,8 @@ class hackathon:
                     )
 
                 print(
-                    "engine exists", os.path.exists("./sd_clip_transformer_fp16.engine")
+                    "engine exists", os.path.exists(
+                        "./sd_clip_transformer_fp16.engine")
                 )
 
                 with open("./sd_clip_transformer_fp16.engine", "rb") as f:
@@ -139,9 +143,11 @@ class hackathon:
                     x_in = torch.randn(1, 4, H // 8, W // 8, dtype=torch.float32).to(
                         "cuda"
                     )
-                    h_in = torch.randn(1, 3, H, W, dtype=torch.float32).to("cuda")
+                    h_in = torch.randn(
+                        1, 3, H, W, dtype=torch.float32).to("cuda")
                     t_in = torch.zeros(1, dtype=torch.int64).to("cuda")
-                    c_in = torch.randn(1, 77, 768, dtype=torch.float32).to("cuda")
+                    c_in = torch.randn(
+                        1, 77, 768, dtype=torch.float32).to("cuda")
 
                     controls = control_model(
                         x=x_in, hint=h_in, timesteps=t_in, context=c_in
@@ -164,7 +170,7 @@ class hackathon:
                     torch.onnx.export(
                         control_model,
                         (x_in, h_in, t_in, c_in),
-                        "./sd_control_test.onnx",
+                        "./sd_control.onnx",
                         export_params=True,
                         opset_version=17,
                         do_constant_folding=True,
@@ -179,7 +185,10 @@ class hackathon:
                     os.system(
                         "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
                     )
-
+                    if control_model is not None:
+                        del control_model
+                        torch.cuda.empty_cache()
+                        gc.collect()
                 with open("./sd_control_fp16.engine", "rb") as f:
                     engine_str = f.read()
 
@@ -203,27 +212,43 @@ class hackathon:
                 # import ipdb; ipdb.set_trace()
                 model = self.model.model.diffusion_model
                 if not os.path.isfile("sd_unet_fp16.engine"):
-                    x_in = torch.randn(1, 4, H // 8, W // 8, dtype=torch.float32).to("cuda")
+                    x_in = torch.randn(1, 4, H // 8, W // 8,
+                                       dtype=torch.float32).to("cuda")
                     t_in = torch.zeros(1, dtype=torch.int64).to("cuda")
-                    c_in = torch.randn(1, 77, 768, dtype=torch.float32).to("cuda")
+                    c_in = torch.randn(
+                        1, 77, 768, dtype=torch.float32).to("cuda")
                     con_in = []
                     h = 32
                     w = 48
                     # prepare inputs
-                    control_0 = torch.randn(1, 320, h, w, dtype=torch.float32).to("cuda")
-                    control_1 = torch.randn(1, 320, h, w, dtype=torch.float32).to("cuda")
-                    control_2 = torch.randn(1, 320, h, w, dtype=torch.float32).to("cuda")
-                    control_3 = torch.randn(1, 320, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                    control_4 = torch.randn(1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                    control_5 = torch.randn(1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                    control_6 = torch.randn(1, 640, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                    control_7 = torch.randn(1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                    control_8 = torch.randn(1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                    control_9 = torch.randn(1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                    control_10 = torch.randn(1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                    control_11 = torch.randn(1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                    control_12 = torch.randn(1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                    con_in = [control_0,control_1,control_2,control_3,control_4,control_5,control_6,control_7,control_8,control_9,control_10,control_11,control_12,]
+                    control_0 = torch.randn(
+                        1, 320, h, w, dtype=torch.float32).to("cuda")
+                    control_1 = torch.randn(
+                        1, 320, h, w, dtype=torch.float32).to("cuda")
+                    control_2 = torch.randn(
+                        1, 320, h, w, dtype=torch.float32).to("cuda")
+                    control_3 = torch.randn(
+                        1, 320, h // 2, w // 2, dtype=torch.float32).to("cuda")
+                    control_4 = torch.randn(
+                        1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
+                    control_5 = torch.randn(
+                        1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
+                    control_6 = torch.randn(
+                        1, 640, h // 4, w // 4, dtype=torch.float32).to("cuda")
+                    control_7 = torch.randn(
+                        1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
+                    control_8 = torch.randn(
+                        1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
+                    control_9 = torch.randn(
+                        1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
+                    control_10 = torch.randn(
+                        1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
+                    control_11 = torch.randn(
+                        1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
+                    control_12 = torch.randn(
+                        1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
+                    con_in = [control_0, control_1, control_2, control_3, control_4, control_5,
+                              control_6, control_7, control_8, control_9, control_10, control_11, control_12,]
 
                     con_in_name = []
                     for i in range(13):
@@ -236,46 +261,55 @@ class hackathon:
                                 )
                     output_names = ["diffution_model_output"]
                     dynamic_table = {
-                                    "x_in": {0: "bs"},
-                                    "t_in": {0: "bs"},
-                                    "c_in": {0: "bs"},
-                                    "diffution_model_output": {0: "bs"},
+                        "x_in": {0: "bs"},
+                        "t_in": {0: "bs"},
+                        "c_in": {0: "bs"},
+                        "diffution_model_output": {0: "bs"},
                     }
-                    torch.onnx.export(
-                        model,
-                        (
-                            x_in,
-                            t_in,
-                            c_in,
-                            [control_0,
-                            control_1,
-                            control_2,
-                            control_3,
-                            control_4,
-                            control_5,
-                            control_6,
-                            control_7,
-                            control_8,
-                            control_9,
-                            control_10,
-                            control_11,
-                            control_12,]
-                        ),
-                        "unet-onnx/sd_unet.onnx",
-                        export_params=True,
-                        opset_version=17,
-                        do_constant_folding=True,
-                        keep_initializers_as_inputs=True,
-                        input_names=["x_in", "t_in", "c_in"] + con_in_name,
-                        output_names=output_names,
-                        dynamic_axes=dynamic_table,
-                    )
+                    with torch.inference_mode(), torch.autocast("cuda"):
+                        torch.onnx.export(
+                            model,
+                            (
+                                x_in,
+                                t_in,
+                                c_in,
+                                [control_0,
+                                 control_1,
+                                 control_2,
+                                 control_3,
+                                 control_4,
+                                 control_5,
+                                 control_6,
+                                 control_7,
+                                 control_8,
+                                 control_9,
+                                 control_10,
+                                 control_11,
+                                 control_12,]
+                            ),
+                            "unet-onnx/sd_unet.onnx",
+                            export_params=True,
+                            opset_version=17,
+                            do_constant_folding=True,
+                            keep_initializers_as_inputs=True,
+                            input_names=["x_in", "t_in", "c_in"] + con_in_name,
+                            output_names=output_names,
+                            dynamic_axes=dynamic_table,
+                        )
                     # import ipdb;ipdb.set_trace()
-                    os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=sd_unet_fp16.engine --fp16 --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
+                    if model is not None:
+                        del model
+                        torch.cuda.empty_cache()
+                        gc.collect()
+                    os.system(
+                        " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
+                    )
+                    os.system("trtexec --onnx=unet-onnx/sd_unet_sanitize.onnx  --saveEngine=sd_unet_fp16.engine --fp16")#--optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
                 with open("./sd_unet_fp16.engine", "rb") as f:
                     engine_str = f.read()
 
-                unet_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
+                unet_engine = trt.Runtime(
+                    self.trt_logger).deserialize_cuda_engine(engine_str)
                 unet_context = unet_engine.create_execution_context()
 
                 unet_context.set_binding_shape(0, (1, 4, 32, 48))
@@ -301,54 +335,52 @@ class hackathon:
                 # unet输入包含controlNet的输出，所以input_names里面。由于controlNet的输出是一个长度为13的List，所以这个input_names,需要将对应变量的输入名，改成13个，例如control_1, control_2..control_13这样。
             # 再导出vae
             elif k == "vae":
-                # model = temp_model
-                # # vae调用的是decode,而导出onnx需要forward,所以这里做一个替换即可。
-                # model.forward = model.decode
-                # h = 32
-                # w = 48
-                # # control_net默认就是forwrad,不需要做什么操作了
-                # if not os.path.isfile("sd_vae_fp16.engine"):
-                #     z_in = torch.randn(1, 4, h, w, dtype=torch.float32).to("cuda")
-                #     output_names = ['vae_decode_out']
-                #     dynamic_table = {
-                #         "z_in": {0: "bs"},
-                #         "vae_decoder_out": {0: "bs"},
-                #     }
+                pass
+                model = temp_model
+                # vae调用的是decode,而导出onnx需要forward,所以这里做一个替换即可。
+                model.forward = model.decode
+                h = 32
+                w = 48
+                # control_net默认就是forwrad,不需要做什么操作了
+                if not os.path.isfile("sd_vae_fp16.engine"):
+                    z_in = torch.randn(
+                        1, 4, h, w, dtype=torch.float32).to("cuda")
+                    output_names = ['vae_decode_out']
+                    dynamic_table = {
+                        "z_in": {0: "bs"},
+                        "vae_decoder_out": {0: "bs"},
+                    }
+                    torch.onnx.export(
+                        model,
+                        z_in,
+                        "./sd_vae.onnx",
+                        export_params=True,
+                        opset_version=17,
+                        do_constant_folding=True,
+                        keep_initializers_as_inputs=True,
+                        input_names=["z_in"],
+                        output_names=output_names,
+                        dynamic_axes=dynamic_table,
+                    )
+                    os.system(
+                        " polygraphy surgeon sanitize sd_vae.onnx --fold-constants --override-input-shapes 'z_in:[1,4,32,48]'  -o sd_vae_sanitize.onnx"
+                    )
+                    os.system(
+                        "trtexec --onnx=sd_vae_sanitize.onnx --saveEngine=sd_vae_fp16.engine --fp16"
+                    )
 
-                #     torch.onnx.export(
-                #         model,
-                #         z_in,
-                #         "./sd_vae.onnx",
-                #         export_params=True,
-                #         opset_version=17,
-                #         do_constant_folding=True,
-                #         keep_initializers_as_inputs=True,
-                #         input_names=["z_in"],
-                #         output_names=output_names,
-                #         dynamic_axes=dynamic_table,
-                #     )
-                #     os.system(
-                #         " polygraphy surgeon sanitize sd_vae.onnx --fold-constants --override-input-shapes 'z_in:[1,4,32,48]'  -o sd_vae_sanitize.onnx"
-                #     )
-                #     os.system(
-                #         "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
-                #     )
+                with open("./sd_vae_fp16.engine", "rb") as f:
+                    engine_str = f.read()
 
-                # with open("./sd_control_fp16.engine", "rb") as f:
-                #     engine_str = f.read()
+                control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
+                    engine_str
+                )
+                vae_context = control_engine.create_execution_context()
 
-                # control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
-                #     engine_str
-                # )
-                # control_context = control_engine.create_execution_context()
+                vae_context.set_binding_shape(0, (1, 4, h, w))
+                self.vae_context = vae_context
 
-                # control_context.set_binding_shape(0, (1, 4, H // 8, W // 8))
-                # control_context.set_binding_shape(1, (1, 3, H, W))
-                # control_context.set_binding_shape(2, (1,))
-                # control_context.set_binding_shape(3, (1, 77, 768))
-                # self.model.control_context = control_context
-
-                # print("finished converting vae model")
+                print("finished converting vae model")
                 # # 然后和上面一样，做onnx导出
             else:
                 model = None
@@ -383,7 +415,8 @@ class hackathon:
             detected_map = self.apply_canny(img, low_threshold, high_threshold)
             detected_map = HWC3(detected_map)
 
-            control = torch.from_numpy(detected_map.copy()).float().cuda() / 255.0
+            control = torch.from_numpy(
+                detected_map.copy()).float().cuda() / 255.0
             control = torch.stack([control for _ in range(num_samples)], dim=0)
             control = einops.rearrange(control, "b h w c -> b c h w").clone()
 
@@ -419,7 +452,8 @@ class hackathon:
                     buffer_device.append(tokens.reshape(-1).data_ptr())
 
                     clip_transformer_out = []
-                    temp = torch.zeros(1, 77, 768, dtype=torch.float32).to("cuda")
+                    temp = torch.zeros(
+                        1, 77, 768, dtype=torch.float32).to("cuda")
                     clip_transformer_out.append(temp)
                     buffer_device.append(temp.reshape(-1).data_ptr())
 
@@ -446,7 +480,8 @@ class hackathon:
                 un_cond = {
                     "c_concat": None if guess_mode else [control],
                     "c_crossattn": [
-                        self.model.get_learned_conditioning([n_prompt] * num_samples)
+                        self.model.get_learned_conditioning(
+                            [n_prompt] * num_samples)
                     ],
                 }
 
