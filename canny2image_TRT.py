@@ -40,7 +40,7 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = True
+        self.acc_clip_stage = False
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
@@ -180,7 +180,7 @@ class hackathon:
                         dynamic_axes=dynamic_table,
                     )
                     os.system(
-                        " polygraphy surgeon sanitize sd_control_test.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 'h_in:[1,3,256,384]' 't_in:[1,]' 'c_in:[1,77,768]' -o sd_control_sanitize.onnx"
+                        " polygraphy surgeon sanitize sd_control.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 'h_in:[1,3,256,384]' 't_in:[1,]' 'c_in:[1,77,768]' -o sd_control_sanitize.onnx"
                     )
                     os.system(
                         "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
@@ -266,45 +266,45 @@ class hackathon:
                         "c_in": {0: "bs"},
                         "diffution_model_output": {0: "bs"},
                     }
-                    with torch.inference_mode(), torch.autocast("cuda"):
-                        torch.onnx.export(
-                            model,
-                            (
-                                x_in,
-                                t_in,
-                                c_in,
-                                [control_0,
-                                 control_1,
-                                 control_2,
-                                 control_3,
-                                 control_4,
-                                 control_5,
-                                 control_6,
-                                 control_7,
-                                 control_8,
-                                 control_9,
-                                 control_10,
-                                 control_11,
-                                 control_12,]
-                            ),
-                            "unet-onnx/sd_unet.onnx",
-                            export_params=True,
-                            opset_version=17,
-                            do_constant_folding=True,
-                            keep_initializers_as_inputs=True,
-                            input_names=["x_in", "t_in", "c_in"] + con_in_name,
-                            output_names=output_names,
-                            dynamic_axes=dynamic_table,
-                        )
+                    #with torch.inference_mode(), torch.autocast("cuda"):
+                    torch.onnx.export(
+                        model,
+                        (
+                            x_in,
+                            t_in,
+                            c_in,
+                            [control_0,
+                                control_1,
+                                control_2,
+                                control_3,
+                                control_4,
+                                control_5,
+                                control_6,
+                                control_7,
+                                control_8,
+                                control_9,
+                                control_10,
+                                control_11,
+                                control_12,]
+                        ),
+                        "unet-onnx/sd_unet.onnx",
+                        export_params=True,
+                        opset_version=17,
+                        do_constant_folding=True,
+                        keep_initializers_as_inputs=True,
+                        input_names=["x_in", "t_in", "c_in"] + con_in_name,
+                        output_names=output_names,
+                        dynamic_axes=dynamic_table,
+                    )
                     # import ipdb;ipdb.set_trace()
                     if model is not None:
                         del model
                         torch.cuda.empty_cache()
                         gc.collect()
-                    os.system(
-                        " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
-                    )
-                    os.system("trtexec --onnx=unet-onnx/sd_unet_sanitize.onnx  --saveEngine=sd_unet_fp16.engine --fp16")#--optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
+                    # os.system(
+                    #     " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
+                    # )
+                    os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=sd_unet_fp16.engine --fp16 --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
                 with open("./sd_unet_fp16.engine", "rb") as f:
                     engine_str = f.read()
 
