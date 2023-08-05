@@ -40,8 +40,8 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = False#True
-        self.model.acc_control_stage = False#True
+        self.acc_clip_stage = True
+        self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
 
@@ -63,9 +63,7 @@ class hackathon:
                 if not os.path.isfile("sd_clip_transformer_fp16.engine"):
                     prompt = "a bird"
                     a_prompt = "best quality, extremely detailed"
-                    n_prompt = (
-                        "longbody, lowres, bad anatomy, bad hands, missing fingers"
-                    )
+                    n_prompt = ("longbody, lowres, bad anatomy, bad hands, missing fingers")
                     num_samples = 1
                     text = [prompt + ", " + a_prompt] * num_samples
                     batch_encoding = self.tokenizer(
@@ -109,31 +107,12 @@ class hackathon:
                         del model
                         torch.cuda.empty_cache()
                         gc.collect()
-                    # os.system("python3 modify_clip_transformer_onnx_shape.py")
-                    os.system(
-                        "polygraphy surgeon sanitize sd_clip_transformer.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx"
-                    )
-                    os.system(
-                        "polygraphy surgeon extract sd_clip_transformer_sanitize.onnx --inputs input_ids:[1,77]:int32 --outputs last_hidden_state:float32 -o sd_clip_subgraph.onnx"
-                    )
-                    os.system(
-                        "trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16 "
-                    )
 
-                print(
-                    "engine exists", os.path.exists(
-                        "./sd_clip_transformer_fp16.engine")
-                )
-
-                with open("./sd_clip_transformer_fp16.engine", "rb") as f:
-                    engine_str = f.read()
-
-                clip_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
-                    engine_str
-                )
-                clip_context = clip_engine.create_execution_context()
-                clip_context.set_binding_shape(0, (1, 77))
-                self.clip_context = clip_context
+                    os.system("python3 modify_clip_transformer_onnx.py")
+                    os.system("polygraphy surgeon sanitize sd_clip_transformer_reshape.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx")
+                    os.system("polygraphy surgeon extract sd_clip_transformer_sanitize.onnx --inputs input_ids:[1,77]:int32 --outputs last_hidden_state:float32 -o sd_clip_subgraph.onnx")
+                    os.system("trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16 ")
+                # print("engine exists", os.path.exists("./sd_clip_transformer_fp16.engine"))
                 print("finished converting clip model")
             # 再导出control_net
             elif k == "control_net":
@@ -191,19 +170,6 @@ class hackathon:
                         del control_model
                         torch.cuda.empty_cache()
                         gc.collect()
-                with open("./sd_control_fp16.engine", "rb") as f:
-                    engine_str = f.read()
-
-                control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
-                    engine_str
-                )
-                control_context = control_engine.create_execution_context()
-
-                control_context.set_binding_shape(0, (1, 4, H // 8, W // 8))
-                control_context.set_binding_shape(1, (1, 3, H, W))
-                control_context.set_binding_shape(2, (1,))
-                control_context.set_binding_shape(3, (1, 77, 768))
-                self.model.control_context = control_context
 
                 print("finished converting control model")
                 # 下面的和上面一样了，输入输出可以去通过debug一下`cldm/cldm.py`下面的`apply_model`函数，这里打一下断点，你就知道有几个输入和输出了。
@@ -307,31 +273,6 @@ class hackathon:
                     #     " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
                     # )
                     os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=sd_unet_fp16.engine --fp16 --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
-                with open("./sd_unet_fp16.engine", "rb") as f:
-                    engine_str = f.read()
-
-                unet_engine = trt.Runtime(
-                    self.trt_logger).deserialize_cuda_engine(engine_str)
-                unet_context = unet_engine.create_execution_context()
-
-                unet_context.set_binding_shape(0, (1, 4, 32, 48))
-                unet_context.set_binding_shape(1, (1,))
-                unet_context.set_binding_shape(2, (1, 77, 768))
-                unet_context.set_binding_shape(3, (1, 320, 32, 48))
-                unet_context.set_binding_shape(4, (1, 320, 32, 48))
-                unet_context.set_binding_shape(5, (1, 320, 32, 48))
-                unet_context.set_binding_shape(6, (1, 320, 16, 24))
-                unet_context.set_binding_shape(7, (1, 640, 16, 24))
-                unet_context.set_binding_shape(8, (1, 640, 16, 24))
-                unet_context.set_binding_shape(9, (1, 640, 8, 12))
-                unet_context.set_binding_shape(10, (1, 1280, 8, 12))
-                unet_context.set_binding_shape(11, (1, 1280, 8, 12))
-                unet_context.set_binding_shape(12, (1, 1280, 4, 6))
-                unet_context.set_binding_shape(13, (1, 1280, 4, 6))
-                unet_context.set_binding_shape(14, (1, 1280, 4, 6))
-                unet_context.set_binding_shape(15, (1, 1280, 4, 6))
-                self.model.unet_context = unet_context
-
                 print("finished converting control model")
                 # 和control_net一样的操作，一样的bug,就是输入输出有些不一样
                 # unet输入包含controlNet的输出，所以input_names里面。由于controlNet的输出是一个长度为13的List，所以这个input_names,需要将对应变量的输入名，改成13个，例如control_1, control_2..control_13这样。
@@ -392,6 +333,46 @@ class hackathon:
             del model
             torch.cuda.empty_cache()
             gc.collect()
+
+        with open("./sd_clip_transformer_fp16.engine", "rb") as f:
+            engine_str = f.read()
+        clip_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
+        clip_context = clip_engine.create_execution_context()
+        clip_context.set_binding_shape(0, (1, 77))
+        self.clip_context = clip_context
+
+        with open("./sd_control_fp16.engine", "rb") as f:
+            engine_str = f.read()
+        control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
+        control_context = control_engine.create_execution_context()
+        control_context.set_binding_shape(0, (1, 4, H // 8, W // 8))
+        control_context.set_binding_shape(1, (1, 3, H, W))
+        control_context.set_binding_shape(2, (1,))
+        control_context.set_binding_shape(3, (1, 77, 768))
+        self.model.control_context = control_context
+
+        with open("./sd_unet_fp16.engine", "rb") as f:
+            engine_str = f.read()
+        unet_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
+        unet_context = unet_engine.create_execution_context()
+        unet_context.set_binding_shape(0, (1, 4, 32, 48))
+        unet_context.set_binding_shape(1, (1,))
+        unet_context.set_binding_shape(2, (1, 77, 768))
+        unet_context.set_binding_shape(3, (1, 320, 32, 48))
+        unet_context.set_binding_shape(4, (1, 320, 32, 48))
+        unet_context.set_binding_shape(5, (1, 320, 32, 48))
+        unet_context.set_binding_shape(6, (1, 320, 16, 24))
+        unet_context.set_binding_shape(7, (1, 640, 16, 24))
+        unet_context.set_binding_shape(8, (1, 640, 16, 24))
+        unet_context.set_binding_shape(9, (1, 640, 8, 12))
+        unet_context.set_binding_shape(10, (1, 1280, 8, 12))
+        unet_context.set_binding_shape(11, (1, 1280, 8, 12))
+        unet_context.set_binding_shape(12, (1, 1280, 4, 6))
+        unet_context.set_binding_shape(13, (1, 1280, 4, 6))
+        unet_context.set_binding_shape(14, (1, 1280, 4, 6))
+        unet_context.set_binding_shape(15, (1, 1280, 4, 6))
+        self.model.unet_context = unet_context
+        
 
     def process(
         self,
