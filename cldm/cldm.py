@@ -376,7 +376,7 @@ class ControlLDM(LatentDiffusion):
 
                 self.control_context.execute_v2(buffer_device)
             else:
-                print("using original pytorch controlnet")
+                # print("using original pytorch controlnet")
                 control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
             # import ipdb; ipdb.set_trace()
             if not self.acc_unet_stage:
@@ -393,8 +393,11 @@ class ControlLDM(LatentDiffusion):
             buffer_device.append(cond_txt.reshape(-1).data_ptr())
             
             for i in range(13):
-                buffer_device.append(control_out[i].reshape(-1).data_ptr())
-            
+                if self.acc_control_stage:
+                    buffer_device.append(control_out[i].reshape(-1).data_ptr())
+                else:
+                    buffer_device.append(control[i].reshape(-1).data_ptr())
+            b, c, h, w = x_noisy.shape
             unet_out = []
             temp = torch.zeros(1, 4, h, w, dtype=torch.float32).to("cuda")
             unet_out.append(temp)

@@ -40,8 +40,8 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = True
-        self.model.acc_control_stage = True
+        self.acc_clip_stage = False#True
+        self.model.acc_control_stage = False#True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
 
@@ -97,25 +97,27 @@ class hackathon:
                         ],
                         output_names=[
                             "last_hidden_state",
+                            "pooler_output",
                         ],
                         dynamic_axes={
                             "input_ids": {0: "B"},
                             "last_hidden_state": {0: "B"},
+                            "pooler_output": {0: "B"},
                         },
                     )
                     if model is not None:
                         del model
                         torch.cuda.empty_cache()
                         gc.collect()
-                    os.system("python3 modify_clip_transformer_onnx_shape.py")
+                    # os.system("python3 modify_clip_transformer_onnx_shape.py")
                     os.system(
-                        "polygraphy surgeon sanitize sd_clip_transformer_onnx_reshape.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx"
+                        "polygraphy surgeon sanitize sd_clip_transformer.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx"
                     )
                     os.system(
                         "polygraphy surgeon extract sd_clip_transformer_sanitize.onnx --inputs input_ids:[1,77]:int32 --outputs last_hidden_state:float32 -o sd_clip_subgraph.onnx"
                     )
                     os.system(
-                        "trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine"# --fp16 "
+                        "trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16 "
                     )
 
                 print(
