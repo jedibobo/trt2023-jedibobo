@@ -40,7 +40,7 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = True
+        self.acc_clip_stage = False#True
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
@@ -311,18 +311,6 @@ class hackathon:
                     os.system(
                         "trtexec --onnx=sd_vae_sanitize.onnx --saveEngine=sd_vae_fp16.engine --fp16"
                     )
-
-                with open("./sd_vae_fp16.engine", "rb") as f:
-                    engine_str = f.read()
-
-                control_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(
-                    engine_str
-                )
-                vae_context = control_engine.create_execution_context()
-
-                vae_context.set_binding_shape(0, (1, 4, h, w))
-                self.vae_context = vae_context
-
                 print("finished converting vae model")
                 # # 然后和上面一样，做onnx导出
             else:
@@ -373,6 +361,12 @@ class hackathon:
         unet_context.set_binding_shape(15, (1, 1280, 4, 6))
         self.model.unet_context = unet_context
         
+        with open("./sd_vae_fp16.engine", "rb") as f:
+            engine_str = f.read()
+        vae_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
+        vae_context = vae_engine.create_execution_context()
+        vae_context.set_binding_shape(0, (1, 4, h, w))
+        self.vae_context = vae_context
 
     def process(
         self,
@@ -493,8 +487,21 @@ class hackathon:
 
             if config.save_memory:
                 self.model.low_vram_shift(is_diffusing=False)
-
-            x_samples = self.model.decode_first_stage(samples)
+            # import ipdb; ipdb.set_trace()
+            if self.acc_vae_stage:
+                scale_factor = 0.18215
+                samples = 1. / scale_factor * samples
+                b, c, h, w = samples.shape
+                buffer_device = []
+                buffer_device.append(samples.reshape(-1).data_ptr())
+                vae_out = []
+                temp = torch.zeros(1, 3, 8*h, 8*w, dtype=torch.float32).to("cuda")
+                vae_out.append(temp)
+                buffer_device.append(temp.reshape(-1).data_ptr())
+                self.vae_context.execute_v2(buffer_device)
+                x_samples = vae_out[0]
+            else:
+                x_samples = self.model.decode_first_stage(samples)
             x_samples = (
                 (einops.rearrange(x_samples, "b c h w -> b h w c") * 127.5 + 127.5)
                 .cpu()
