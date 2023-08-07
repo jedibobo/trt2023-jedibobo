@@ -40,7 +40,7 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = True
+        self.acc_clip_stage = False#True
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
@@ -475,7 +475,7 @@ class hackathon:
                 else ([strength] * 13)
             )  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
             samples, intermediates = self.ddim_sampler.sample(
-                ddim_steps,
+                ddim_steps-15,
                 num_samples,
                 shape,
                 cond,
