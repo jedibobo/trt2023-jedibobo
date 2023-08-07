@@ -111,7 +111,7 @@ class hackathon:
                     os.system("python3 modify_clip_transformer_onnx.py")
                     os.system("polygraphy surgeon sanitize sd_clip_transformer_reshape.onnx --fold-constants --override-input-shapes 'input_ids:[1,77]' -o sd_clip_transformer_sanitize.onnx")
                     os.system("polygraphy surgeon extract sd_clip_transformer_sanitize.onnx --inputs input_ids:[1,77]:int32 --outputs last_hidden_state:float32 -o sd_clip_subgraph.onnx")
-                    os.system("trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --noTF32 ")
+                    os.system("trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16")
                 # print("engine exists", os.path.exists("./sd_clip_transformer_fp16.engine"))
                 print("finished converting clip model")
             # 再导出control_net
@@ -326,7 +326,7 @@ class hackathon:
             engine_str = f.read()
         clip_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
         clip_context = clip_engine.create_execution_context()
-        clip_context.set_binding_shape(0, (1, 77))
+        clip_context.set_binding_shape(0, (2, 77))
         self.clip_context = clip_context
 
         with open("./sd_control_fp16.engine", "rb") as f:
@@ -407,14 +407,15 @@ class hackathon:
             if self.acc_clip_stage:
                 cond = {}
                 un_cond = {}
+                # cond_text = [prompt + ", " + a_prompt] * num_samples
+                # un_cond_text = [n_prompt] * num_samples
                 for i in range(2):
                     if i == 0:
                         text = [prompt + ", " + a_prompt] * num_samples
                     elif i == 1:
                         text = [n_prompt] * num_samples
                     else:
-                        raise NotImplementedError
-                    text = [prompt + ", " + a_prompt] * num_samples
+                        raise NotImplementedError                
                     batch_encoding = self.tokenizer(
                         text,
                         truncation=True,
@@ -433,18 +434,17 @@ class hackathon:
                         1, 77, 768, dtype=torch.float32).to("cuda")
                     clip_transformer_out.append(temp)
                     buffer_device.append(temp.reshape(-1).data_ptr())
-
-                    temp = torch.zeros(1, 768, dtype=torch.float32).to("cuda")
-                    clip_transformer_out.append(temp)
-                    buffer_device.append(temp.reshape(-1).data_ptr())
-
                     self.clip_context.execute_v2(buffer_device)
+                    # use np.clip to clip the output of clip_transformer_out
+                    # import ipdb; ipdb.set_trace()
                     if i == 0:
                         cond["c_concat"] = [control]
                         cond["c_crossattn"] = [clip_transformer_out[0]]
                     elif i == 1:
                         un_cond["c_concat"] = None if guess_mode else [control]
                         un_cond["c_crossattn"] = [clip_transformer_out[0]]
+
+                # import ipdb; ipdb.set_trace()
             else:
                 cond = {
                     "c_concat": [control],
