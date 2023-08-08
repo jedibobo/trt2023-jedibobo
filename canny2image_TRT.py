@@ -475,7 +475,7 @@ class hackathon:
                 else ([strength] * 13)
             )  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
             samples, intermediates = self.ddim_sampler.sample(
-                ddim_steps-10,
+                12,
                 num_samples,
                 shape,
                 cond,
