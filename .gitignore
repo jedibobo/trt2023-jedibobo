@@ -9,6 +9,7 @@
 *.so
 *.weight
 *.bias
+*.plan
 
 unet-onnx/
 old-code/

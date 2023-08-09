@@ -40,7 +40,7 @@ class hackathon:
             "unet": "diffusion_model",
             "vae": "first_stage_model",
         }
-        self.acc_clip_stage = False#True
+        self.acc_clip_stage = True
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
@@ -326,7 +326,7 @@ class hackathon:
             engine_str = f.read()
         clip_engine = trt.Runtime(self.trt_logger).deserialize_cuda_engine(engine_str)
         clip_context = clip_engine.create_execution_context()
-        clip_context.set_binding_shape(0, (2, 77))
+        clip_context.set_binding_shape(0, (1, 77))
         self.clip_context = clip_context
 
         with open("./sd_control_fp16.engine", "rb") as f:
@@ -425,7 +425,7 @@ class hackathon:
                         padding="max_length",
                         return_tensors="pt",
                     )
-                    tokens = batch_encoding["input_ids"].to("cuda")
+                    tokens = batch_encoding["input_ids"].type(torch.int32).to("cuda")
                     buffer_device = []
                     buffer_device.append(tokens.reshape(-1).data_ptr())
 
@@ -475,7 +475,7 @@ class hackathon:
                 else ([strength] * 13)
             )  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
             samples, intermediates = self.ddim_sampler.sample(
-                12,
+                10,
                 num_samples,
                 shape,
                 cond,
