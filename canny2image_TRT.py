@@ -164,7 +164,7 @@ class hackathon:
                         " polygraphy surgeon sanitize sd_control.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 'h_in:[1,3,256,384]' 't_in:[1,]' 'c_in:[1,77,768]' -o sd_control_sanitize.onnx"
                     )
                     os.system(
-                        "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16 --builderOptimizationLevel=5"
+                        "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
                     )
                     if control_model is not None:
                         del control_model
