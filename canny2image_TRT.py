@@ -111,7 +111,7 @@ class hackathon:
                     os.system("python3 modify_clip_transformer_onnx.py")
                     os.system("polygraphy surgeon sanitize sd_clip_transformer_reshape.onnx --fold-constants --override-input-shapes 'input_ids:[2,77]' -o sd_clip_transformer_sanitize.onnx")
                     os.system("polygraphy surgeon extract sd_clip_transformer_sanitize.onnx --inputs input_ids:[2,77]:int32 --outputs last_hidden_state:float32 -o sd_clip_subgraph.onnx")
-                    os.system("trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16 --builderOptimizationLevel=5")
+                    os.system("trtexec --onnx=sd_clip_subgraph.onnx --saveEngine=sd_clip_transformer_fp16.engine --fp16 --builderOptimizationLevel=5 --directIO")
                 # print("engine exists", os.path.exists("./sd_clip_transformer_fp16.engine"))
                 print("finished converting clip model")
             # 再导出control_net
@@ -164,7 +164,7 @@ class hackathon:
                         " polygraphy surgeon sanitize sd_control.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 'h_in:[1,3,256,384]' 't_in:[1,]' 'c_in:[1,77,768]' -o sd_control_sanitize.onnx"
                     )
                     os.system(
-                        "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16"
+                        "trtexec --onnx=sd_control_sanitize.onnx --saveEngine=sd_control_fp16.engine --fp16 --directIO"
                     )
                     if control_model is not None:
                         del control_model
@@ -272,7 +272,7 @@ class hackathon:
                     # os.system(
                     #     " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
                     # )
-                    os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=sd_unet_fp16.engine --fp16 --builderOptimizationLevel=5 --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
+                    os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=sd_unet_fp16.engine --fp16 --builderOptimizationLevel=5 --directIO --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
                 print("finished converting control model")
                 # 和control_net一样的操作，一样的bug,就是输入输出有些不一样
                 # unet输入包含controlNet的输出，所以input_names里面。由于controlNet的输出是一个长度为13的List，所以这个input_names,需要将对应变量的输入名，改成13个，例如control_1, control_2..control_13这样。
@@ -309,7 +309,7 @@ class hackathon:
                         " polygraphy surgeon sanitize sd_vae.onnx --fold-constants --override-input-shapes 'z_in:[1,4,32,48]'  -o sd_vae_sanitize.onnx"
                     )
                     os.system(
-                        "trtexec --onnx=sd_vae_sanitize.onnx --saveEngine=sd_vae_fp16.engine --fp16 --builderOptimizationLevel=5"
+                        "trtexec --onnx=sd_vae_sanitize.onnx --saveEngine=sd_vae_fp16.engine --fp16 --builderOptimizationLevel=5 --directIO"
                     )
                 print("finished converting vae model")
                 # # 然后和上面一样，做onnx导出
