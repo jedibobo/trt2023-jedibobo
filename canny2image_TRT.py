@@ -43,7 +43,7 @@ class hackathon:
             "vae": "first_stage_model",
         }
         self.acc_clip_stage = True
-        self.model.acc_control_stage = False#True
+        self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
         self.acc_vae_stage = True
 
@@ -371,50 +371,52 @@ class hackathon:
             else:
                 model = None
 
-        # remove model from gpu
-        if model is not None:
-            del model
-            torch.cuda.empty_cache()
-            gc.collect()
+        # # remove model from gpu
+        # if model is not None:
+        #     del model
+        #     torch.cuda.empty_cache()
+        #     gc.collect()
+        if self.acc_clip_stage:
+            self.clip_engine = Engine("engine/sd_clip_transformer_fp16.engine")
+            self.clip_engine.load()
+            self.clip_engine.activate()
+            clip_profile = {'input_ids':(2, 77)}
+            self.clip_engine.allocate_buffers(clip_profile)
 
-        self.clip_engine = Engine("engine/sd_clip_transformer_fp16.engine")
-        self.clip_engine.load()
-        self.clip_engine.activate()
-        clip_profile = {'input_ids':(2, 77)}
-        self.clip_engine.allocate_buffers(clip_profile)
+        if self.model.acc_control_stage:
+            self.model.control_engine = Engine("engine/sd_control_fp16.engine")
+            self.model.control_engine.load()
+            control_profile = {'x_in':(1,4,32,48),'h_in':(1,3,256,384),'t_in':(1,),'c_in':(1,77,768)} 
+            self.model.control_engine.activate()
+            self.model.control_engine.allocate_buffers()
 
-        self.model.control_engine = Engine("engine/sd_control_fp16.engine")
-        self.model.control_engine.load()
-        control_profile = {'x_in':(1,4,32,48),'h_in':(1,3,256,384),'t_in':(1,),'c_in':(1,77,768)} 
-        self.model.control_engine.activate()
-        self.model.control_engine.allocate_buffers()
-
-        self.model.unet_engine = Engine("engine/sd_unet_fp16.engine")
-        self.model.unet_engine.load()
-        self.model.unet_engine.activate()
-        unet_profile = {'x_in':(1,4,32,48),
-                        't_in':(1,),
-                        'c_in':(1,77,768),
-                        'control_in_0': (1,320,32,48),
-                        'control_in_1': (1,320,32,48),
-                        'control_in_2': (1,320,32,48),
-                        'control_in_3': (1,320,16,24),
-                        'control_in_4': (1,640,16,24),
-                        'control_in_5': (1,640,16,24),
-                        'control_in_6': (1,640,8,12),
-                        'control_in_7': (1,1280,8,12),
-                        'control_in_8': (1,1280,8,12),
-                        'control_in_9': (1,1280,4,6),
-                        'control_in_10':(1,1280,4,6),
-                        'control_in_11':(1,1280,4,6),
-                        'control_in_12':(1,1280,4,6)}
-        self.model.unet_engine.allocate_buffers()
-        
-        self.vae_engine = Engine("engine/sd_vae_fp16.engine")
-        self.vae_engine.load()
-        self.vae_engine.activate()
-        vae_profile = {'z_in':(1,4,32,48)} 
-        self.vae_engine.allocate_buffers(vae_profile)
+        if self.model.acc_unet_stage:
+            self.model.unet_engine = Engine("engine/sd_unet_fp16.engine")
+            self.model.unet_engine.load()
+            self.model.unet_engine.activate()
+            unet_profile = {'x_in':(1,4,32,48),
+                            't_in':(1,),
+                            'c_in':(1,77,768),
+                            'control_in_0': (1,320,32,48),
+                            'control_in_1': (1,320,32,48),
+                            'control_in_2': (1,320,32,48),
+                            'control_in_3': (1,320,16,24),
+                            'control_in_4': (1,640,16,24),
+                            'control_in_5': (1,640,16,24),
+                            'control_in_6': (1,640,8,12),
+                            'control_in_7': (1,1280,8,12),
+                            'control_in_8': (1,1280,8,12),
+                            'control_in_9': (1,1280,4,6),
+                            'control_in_10':(1,1280,4,6),
+                            'control_in_11':(1,1280,4,6),
+                            'control_in_12':(1,1280,4,6)}
+            self.model.unet_engine.allocate_buffers()
+        if self.acc_vae_stage:    
+            self.vae_engine = Engine("engine/sd_vae_fp16.engine")
+            self.vae_engine.load()
+            self.vae_engine.activate()
+            vae_profile = {'z_in':(1,4,32,48)} 
+            self.vae_engine.allocate_buffers(vae_profile)
 
     def process(
         self,
