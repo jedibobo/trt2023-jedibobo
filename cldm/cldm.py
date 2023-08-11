@@ -18,7 +18,7 @@ from ldm.models.diffusion.ddpm import LatentDiffusion
 from ldm.util import log_txt_as_img, exists, instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 
-
+from utilities import device_view
 class ControlledUnetModel(UNetModel):
     def forward(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
         hs = []
@@ -329,82 +329,29 @@ class ControlLDM(LatentDiffusion):
         assert isinstance(cond, dict)
         diffusion_model = self.model.diffusion_model
         
-        cond_txt = torch.cat(cond['c_crossattn'], 1)
-
+        cond_txt = torch.cat(cond['c_crossattn'], 1).to(dtype=torch.float32)
         if cond['c_concat'] is None:
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
         else:
             if self.acc_control_stage:
-                hint_in = torch.cat(cond['c_concat'], 1)
-                b, c, h, w = x_noisy.shape
-
-                buffer_device = []
-                buffer_device.append(x_noisy.reshape(-1).data_ptr())
-                buffer_device.append(hint_in.reshape(-1).data_ptr())
-                buffer_device.append(t.reshape(-1).data_ptr())
-                buffer_device.append(cond_txt.reshape(-1).data_ptr())
-
-                control_out = []
-
-                for i in range(3):
-                    temp = torch.zeros(b, 320, h, w, dtype=torch.float32).to("cuda")
-                    control_out.append(temp)
-                    buffer_device.append(temp.reshape(-1).data_ptr())
-                
-                temp = torch.zeros(b, 320, h//2, w//2, dtype=torch.float32).to("cuda")
-                control_out.append(temp)
-                buffer_device.append(temp.reshape(-1).data_ptr())
-
-                for i in range(2):
-                    temp = torch.zeros(b, 640, h//2, w//2, dtype=torch.float32).to("cuda")
-                    control_out.append(temp)
-                    buffer_device.append(temp.reshape(-1).data_ptr())
-
-                temp = torch.zeros(b, 640, h//4, w//4, dtype=torch.float32).to("cuda")
-                control_out.append(temp)
-                buffer_device.append(temp.reshape(-1).data_ptr())
-
-                for i in range(2):
-                    temp = torch.zeros(b, 1280, h//4, w//4, dtype=torch.float32).to("cuda")
-                    control_out.append(temp)
-                    buffer_device.append(temp.reshape(-1).data_ptr())
-
-                for i in range(4):
-                    temp = torch.zeros(b, 1280, h//8, w//8, dtype=torch.float32).to("cuda")
-                    control_out.append(temp)
-                    buffer_device.append(temp.reshape(-1).data_ptr())
-
-                self.control_context.execute_v2(buffer_device)
+                hint_in = torch.cat(cond['c_concat'], 1) 
+                control_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'h_in':device_view(hint_in.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.int32)),'c_in':device_view(cond_txt.to(dtype=torch.float32))}
+                output_dict = self.control_engine.infer(control_input_dict,self.stream)
+                control_keys = ['out_{}'.format(i) for i in range(13)]
+                control = [output_dict[key].to(dtype=torch.float32) for key in control_keys]
+                # import ipdb; ipdb.set_trace()
             else:
-                # print("using original pytorch controlnet")
                 control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
             # import ipdb; ipdb.set_trace()
+            # control = [c * scale for c, scale in zip(control, self.control_scales)]
             if not self.acc_unet_stage:
-                # print("using original pytorch unet")
-                if not self.acc_control_stage:
-                    control = [c * scale for c, scale in zip(control, self.control_scales)]
-                else:
-                    control = [c * scale for c, scale in zip(control_out, self.control_scales)]
                 eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control)
-                return eps
-            buffer_device = []
-            buffer_device.append(x_noisy.reshape(-1).data_ptr())
-            buffer_device.append(t.reshape(-1).data_ptr())
-            buffer_device.append(cond_txt.reshape(-1).data_ptr())
-            
-            for i in range(13):
-                if self.acc_control_stage:
-                    buffer_device.append(control_out[i].reshape(-1).data_ptr())
-                else:
-                    buffer_device.append(control[i].reshape(-1).data_ptr())
-            b, c, h, w = x_noisy.shape
-            unet_out = []
-            temp = torch.zeros(1, 4, h, w, dtype=torch.float32).to("cuda")
-            unet_out.append(temp)
-            buffer_device.append(temp.reshape(-1).data_ptr())
-            self.unet_context.execute_v2(buffer_device)
-            eps = unet_out[0]
-            # import ipdb; ipdb.set_trace()
+            else:
+                # import ipdb; ipdb.set_trace()
+                unet_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.int32)),'c_in':device_view(cond_txt.to(dtype=torch.float32)),}
+                unet_input_dict.update({'control_in_{}'.format(i):device_view(control[i].to(dtype=torch.float32)) for i in range(13)})
+                eps = self.unet_engine.infer(unet_input_dict, self.stream)['diffution_model_output'].to(dtype=torch.float32)
+                
         return eps
 
     @torch.no_grad()
