@@ -206,6 +206,8 @@ class hackathon:
             # 再导出unet
             elif k == "unet" and self.model.acc_unet_stage:
                 # import ipdb; ipdb.set_trace()
+                H = 256
+                W = 384
                 model = self.model.model.diffusion_model
                 if not os.path.isfile("engine/sd_unet_fp16.engine"):
                     with torch.inference_mode(), torch.autocast("cuda"):
