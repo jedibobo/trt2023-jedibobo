@@ -184,12 +184,16 @@ class DDIMSampler(object):
                       dynamic_threshold=None):
         b, *_, device = *x.shape, x.device
 
-        if unconditional_conditioning is None or unconditional_guidance_scale == 1.:
-            model_output = self.model.apply_model(x, t, c)
-        else:
-            model_t = self.model.apply_model(x, t, c)
-            model_uncond = self.model.apply_model(x, t, unconditional_conditioning)
-            model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
+        # if unconditional_conditioning is None or unconditional_guidance_scale == 1.:
+        #     model_output = self.model.apply_model(x, t, c)
+        # else:
+        # import ipdb; ipdb.set_trace()
+        model_sample = self.model.apply_model(x.repeat(2, 1, 1, 1), t.repeat(2,), unconditional_conditioning)
+        model_t = model_sample[0:1]
+        model_uncond = model_sample[1:2]
+        # model_t = self.model.apply_model(x, t, c)
+        # model_uncond = self.model.apply_model(x, t, unconditional_conditioning) #improve here
+        model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
 
         if self.model.parameterization == "v":
             e_t = self.model.predict_eps_from_z_and_v(x, t, model_output)

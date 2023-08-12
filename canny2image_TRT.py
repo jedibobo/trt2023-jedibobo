@@ -45,7 +45,7 @@ class hackathon:
         self.acc_clip_stage = True
         self.model.acc_control_stage = True
         self.model.acc_unet_stage = True
-        self.acc_vae_stage = True
+        self.acc_vae_stage = False#True
 
         self.clip_engine = None
         self.model.control_engine = None
@@ -99,7 +99,7 @@ class hackathon:
                     # tokens = batch_encoding["input_ids"].to("cuda")
                     # outputs = model(input_ids=tokens, output_hidden_states="last"=="hidden")'
                     with torch.inference_mode(), torch.autocast("cuda"):
-                        inputs = torch.zeros(2, 77, dtype=torch.int32).to("cuda")
+                        inputs = torch.zeros(2, 77, dtype=torch.int32, device="cuda")
                         # import ipdb; ipdb.set_trace()
                         # onnx_path: 保存路径
                         # input_names, output_names 对应输入输出名列表，这个debug一下，可以随便命名
@@ -150,18 +150,12 @@ class hackathon:
                 control_model = self.model.control_model
                 if not os.path.isfile("engine/sd_control_fp16.engine"):
                     with torch.inference_mode(), torch.autocast("cuda"):
-                        x_in = torch.randn(1, 4, H // 8, W // 8, dtype=torch.float32).to(
-                            "cuda"
-                        )
-                        h_in = torch.randn(
-                            1, 3, H, W, dtype=torch.float32).to("cuda")
-                        t_in = torch.zeros(1, dtype=torch.int32).to("cuda")
-                        c_in = torch.randn(
-                            1, 77, 768, dtype=torch.float32).to("cuda")
+                        x_in = torch.randn(1, 4, H // 8, W // 8, dtype=torch.float32,device="cuda")
+                        h_in = torch.randn(1, 3, H, W, dtype=torch.float32,device="cuda")
+                        t_in = torch.tensor([1.], dtype=torch.float32, device="cuda")
+                        c_in = torch.randn(1, 77, 768, dtype=torch.float32,device="cuda")
 
-                        controls = control_model(
-                            x=x_in, hint=h_in, timesteps=t_in, context=c_in
-                        )
+                        controls = control_model(x=x_in, hint=h_in, timesteps=t_in, context=c_in)
 
                         output_names = []
                         for i in range(13):
@@ -189,10 +183,10 @@ class hackathon:
                             output_names=output_names,
                             dynamic_axes=dynamic_table,
                         )
-                    os.system("polygraphy surgeon sanitize sd_control.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 'h_in:[1,3,256,384]' 't_in:[1,]' 'c_in:[1,77,768]' -o sd_control_sanitize.onnx")
+                    os.system("polygraphy surgeon sanitize sd_control.onnx --fold-constants --override-input-shapes 'x_in:[2,4,32,48]' 'h_in:[2,3,256,384]' 't_in:[2,]' 'c_in:[2,77,768]' -o sd_control_sanitize.onnx")
                     # os.system("trtexec --onnx=sd_control_sanitize.onnx --saveEngine=engine/sd_control_fp16.engine --fp16 --builderOptimizationLevel=5")
                     control_engine = Engine("engine/sd_control_fp16.engine")
-                    control_profile = {'x_in':[(1,4,32,48),(1,4,32,48),(1,4,32,48)],'h_in':[(1,3,256,384),(1,3,256,384),(1,3,256,384)],'t_in':[(1,),(1,),(1,)],'c_in':[(1,77,768),(1,77,768),(1,77,768)]} 
+                    control_profile = {'x_in':[(2,4,32,48),(2,4,32,48),(2,4,32,48)],'h_in':[(2,3,256,384),(2,3,256,384),(2,3,256,384)],'t_in':[(2,),(2,),(2,)],'c_in':[(2,77,768),(2,77,768),(2,77,768)]} 
                     control_engine.build("sd_control_sanitize.onnx",fp16=True,input_profile=control_profile,enable_all_tactics=True,workspace_size=self.max_workspace_size)
                     if control_model is not None:
                         del control_model
@@ -211,41 +205,26 @@ class hackathon:
                 model = self.model.model.diffusion_model
                 if not os.path.isfile("engine/sd_unet_fp16.engine"):
                     with torch.inference_mode(), torch.autocast("cuda"):
-                        x_in = torch.randn(1, 4, H // 8, W // 8,
-                                        dtype=torch.float32).to("cuda")
-                        t_in = torch.zeros(1, dtype=torch.int32).to("cuda")
-                        c_in = torch.randn(
-                            1, 77, 768, dtype=torch.float32).to("cuda")
+                        x_in = torch.randn(2, 4, H // 8, W // 8,dtype=torch.float32,device="cuda")
+                        t_in = torch.tensor([1.,1.], dtype=torch.float32, device="cuda")
+                        c_in = torch.randn(2, 77, 768, dtype=torch.float32, device="cuda") # c_in is output of 
                         con_in = []
                         h = 32
                         w = 48
                         # prepare inputs
-                        control_0 = torch.randn(
-                            1, 320, h, w, dtype=torch.float32).to("cuda")
-                        control_1 = torch.randn(
-                            1, 320, h, w, dtype=torch.float32).to("cuda")
-                        control_2 = torch.randn(
-                            1, 320, h, w, dtype=torch.float32).to("cuda")
-                        control_3 = torch.randn(
-                            1, 320, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                        control_4 = torch.randn(
-                            1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                        control_5 = torch.randn(
-                            1, 640, h // 2, w // 2, dtype=torch.float32).to("cuda")
-                        control_6 = torch.randn(
-                            1, 640, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                        control_7 = torch.randn(
-                            1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                        control_8 = torch.randn(
-                            1, 1280, h // 4, w // 4, dtype=torch.float32).to("cuda")
-                        control_9 = torch.randn(
-                            1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                        control_10 = torch.randn(
-                            1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                        control_11 = torch.randn(
-                            1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
-                        control_12 = torch.randn(
-                            1, 1280, h // 8, w // 8, dtype=torch.float32).to("cuda")
+                        control_0 = torch.randn(2, 320, h, w, dtype=torch.float32,device="cuda")
+                        control_1 = torch.randn(2, 320, h, w, dtype=torch.float32,device="cuda")
+                        control_2 = torch.randn(2, 320, h, w, dtype=torch.float32,device="cuda")
+                        control_3 = torch.randn(2, 320, h // 2, w // 2, dtype=torch.float32,device="cuda")
+                        control_4 = torch.randn(2, 640, h // 2, w // 2, dtype=torch.float32,device="cuda")
+                        control_5 = torch.randn(2, 640, h // 2, w // 2, dtype=torch.float32,device="cuda")
+                        control_6 = torch.randn(2, 640, h // 4, w // 4, dtype=torch.float32,device="cuda")
+                        control_7 = torch.randn(2, 1280, h // 4, w // 4, dtype=torch.float32,device="cuda")
+                        control_8 = torch.randn(2, 1280, h // 4, w // 4, dtype=torch.float32,device="cuda")
+                        control_9 = torch.randn(2, 1280, h // 8, w // 8, dtype=torch.float32,device="cuda")
+                        control_10 = torch.randn(2, 1280, h // 8, w // 8, dtype=torch.float32,device="cuda")
+                        control_11 = torch.randn(2, 1280, h // 8, w // 8, dtype=torch.float32,device="cuda")
+                        control_12 = torch.randn(2, 1280, h // 8, w // 8, dtype=torch.float32,device="cuda")
                         con_in = [control_0, control_1, control_2, control_3, control_4, control_5,
                                 control_6, control_7, control_8, control_9, control_10, control_11, control_12,]
 
@@ -300,22 +279,22 @@ class hackathon:
                     #     " polygraphy surgeon sanitize unet-onnx/sd_unet.onnx --fold-constants --override-input-shapes 'x_in:[1,4,32,48]' 't_in:[1,]' 'c_in:[1,77,768]' 'control_in_0:[1,320,32,48]' 'control_in_1:[1,320,32,48]' 'control_in_2:[1,320,32,48]' 'control_in_3:[1,320,16,24]' 'control_in_4:[1,640,16,24]' 'control_in_5:[1x640,16,24]' 'control_in_6:[1,640,8,12' 'control_in_7:[1,1280,8,12]' 'control_in_8:[1,1280,8,12]' 'control_in_9:[1,1280,4,6]' 'control_in_10:[1,1280,4,6]' 'control_in_11:[1,1280,4,6]' 'control_in_12:[1,1280,4,6]' -o unet-onnx/sd_unet_sanitize.onnx"
                     # )
                     unet_engine = Engine("engine/sd_unet_fp16.engine")
-                    unet_profile = {'x_in':[(1,4,32,48),(1,4,32,48),(1,4,32,48)],
-                                    't_in':[(1,),(1,),(1,)],
-                                    'c_in':[(1,77,768),(1,77,768),(1,77,768)],
-                                    'control_in_0':[(1,320,32,48),(1,320,32,48),(1,320,32,48)],
-                                    'control_in_1':[(1,320,32,48),(1,320,32,48),(1,320,32,48)],
-                                    'control_in_2':[(1,320,32,48),(1,320,32,48),(1,320,32,48)],
-                                    'control_in_3':[(1,320,16,24),(1,320,16,24),(1,320,16,24)],
-                                    'control_in_4':[(1,640,16,24),(1,640,16,24),(1,640,16,24)],
-                                    'control_in_5':[(1,640,16,24),(1,640,16,24),(1,640,16,24)],
-                                    'control_in_6':[(1,640,8,12),(1,640,8,12),(1,640,8,12)],
-                                    'control_in_7':[(1,1280,8,12),(1,1280,8,12),(1,1280,8,12)],
-                                    'control_in_8':[(1,1280,8,12),(1,1280,8,12),(1,1280,8,12)],
-                                    'control_in_9':[(1,1280,4,6),(1,1280,4,6),(1,1280,4,6)],
-                                    'control_in_10':[(1,1280,4,6),(1,1280,4,6),(1,1280,4,6)],
-                                    'control_in_11':[(1,1280,4,6),(1,1280,4,6),(1,1280,4,6)],
-                                    'control_in_12':[(1,1280,4,6),(1,1280,4,6),(1,1280,4,6)],}
+                    unet_profile = {'x_in':[(2,4,32,48),(2,4,32,48),(2,4,32,48)],
+                                    't_in':[(2,),(2,),(2,)],
+                                    'c_in':[(2,77,768),(2,77,768),(2,77,768)],
+                                    'control_in_0':[(2,320,32,48),(2,320,32,48),(2,320,32,48)],
+                                    'control_in_1':[(2,320,32,48),(2,320,32,48),(2,320,32,48)],
+                                    'control_in_2':[(2,320,32,48),(2,320,32,48),(2,320,32,48)],
+                                    'control_in_3':[(2,320,16,24),(2,320,16,24),(2,320,16,24)],
+                                    'control_in_4':[(2,640,16,24),(2,640,16,24),(2,640,16,24)],
+                                    'control_in_5':[(2,640,16,24),(2,640,16,24),(2,640,16,24)],
+                                    'control_in_6':[(2,640,8,12),(2,640,8,12),(2,640,8,12)],
+                                    'control_in_7':[(2,1280,8,12),(2,1280,8,12),(2,1280,8,12)],
+                                    'control_in_8':[(2,1280,8,12),(2,1280,8,12),(2,1280,8,12)],
+                                    'control_in_9':[(2,1280,4,6),(2,1280,4,6),(2,1280,4,6)],
+                                    'control_in_10':[(2,1280,4,6),(2,1280,4,6),(2,1280,4,6)],
+                                    'control_in_11':[(2,1280,4,6),(2,1280,4,6),(2,1280,4,6)],
+                                    'control_in_12':[(2,1280,4,6),(2,1280,4,6),(2,1280,4,6)],}
                     unet_engine.build("unet-onnx/sd_unet.onnx",fp16=True,input_profile=unet_profile,enable_all_tactics=True,workspace_size=self.max_workspace_size)
                     # os.system("trtexec --onnx=unet-onnx/sd_unet.onnx  --saveEngine=engine/sd_unet_fp16.engine --fp16 --builderOptimizationLevel=5 --optShapes=x_in:1x4x32x48,t_in:1,c_in:1x77x768,control_in_0:1x320x32x48,control_in_1:1x320x32x48,control_in_2:1x320x32x48,control_in_3:1x320x16x24,control_in_4:1x640x16x24,control_in_5:1x640x16x24,control_in_6:1x640x8x12,control_in_7:1x1280x8x12,control_in_8:1x1280x8x12,control_in_9:1x1280x4x6,control_in_10:1x1280x4x6,control_in_11:1x1280x4x6,control_in_12:1x1280x4x6")
                     if model is not None:
@@ -337,8 +316,7 @@ class hackathon:
                 # control_net默认就是forwrad,不需要做什么操作了
                 if not os.path.isfile("engine/sd_vae_fp16.engine"):
                     with torch.inference_mode(), torch.autocast("cuda"):
-                        z_in = torch.randn(
-                            1, 4, h, w, dtype=torch.float32).to("cuda")
+                        z_in = torch.randn(1, 4, h, w, dtype=torch.float32,device="cuda")
                         output_names = ['vae_decode_out']
                         dynamic_table = {
                             "z_in": {0: "bs"},
@@ -376,47 +354,45 @@ class hackathon:
         #     del model
         #     torch.cuda.empty_cache()
         #     gc.collect()
-        if self.acc_clip_stage:
-            self.clip_engine = Engine("engine/sd_clip_transformer_fp16.engine")
-            self.clip_engine.load()
-            self.clip_engine.activate()
-            clip_profile = {'input_ids':(2, 77)}
-            self.clip_engine.allocate_buffers(clip_profile)
 
-        if self.model.acc_control_stage:
-            self.model.control_engine = Engine("engine/sd_control_fp16.engine")
-            self.model.control_engine.load()
-            control_profile = {'x_in':(1,4,32,48),'h_in':(1,3,256,384),'t_in':(1,),'c_in':(1,77,768)} 
-            self.model.control_engine.activate()
-            self.model.control_engine.allocate_buffers()
+        self.clip_engine = Engine("engine/sd_clip_transformer_fp16.engine")
+        self.clip_engine.load()
+        self.clip_engine.activate()
+        clip_profile = {'input_ids':(2, 77)}
+        self.clip_engine.allocate_buffers(clip_profile)
 
-        if self.model.acc_unet_stage:
-            self.model.unet_engine = Engine("engine/sd_unet_fp16.engine")
-            self.model.unet_engine.load()
-            self.model.unet_engine.activate()
-            unet_profile = {'x_in':(1,4,32,48),
-                            't_in':(1,),
-                            'c_in':(1,77,768),
-                            'control_in_0': (1,320,32,48),
-                            'control_in_1': (1,320,32,48),
-                            'control_in_2': (1,320,32,48),
-                            'control_in_3': (1,320,16,24),
-                            'control_in_4': (1,640,16,24),
-                            'control_in_5': (1,640,16,24),
-                            'control_in_6': (1,640,8,12),
-                            'control_in_7': (1,1280,8,12),
-                            'control_in_8': (1,1280,8,12),
-                            'control_in_9': (1,1280,4,6),
-                            'control_in_10':(1,1280,4,6),
-                            'control_in_11':(1,1280,4,6),
-                            'control_in_12':(1,1280,4,6)}
-            self.model.unet_engine.allocate_buffers()
-        if self.acc_vae_stage:    
-            self.vae_engine = Engine("engine/sd_vae_fp16.engine")
-            self.vae_engine.load()
-            self.vae_engine.activate()
-            vae_profile = {'z_in':(1,4,32,48)} 
-            self.vae_engine.allocate_buffers(vae_profile)
+        self.model.control_engine = Engine("engine/sd_control_fp16.engine")
+        self.model.control_engine.load()
+        control_profile = {'x_in':(2,4,32,48),'h_in':(2,3,256,384),'t_in':(2,),'c_in':(2,77,768)} 
+        self.model.control_engine.activate()
+        self.model.control_engine.allocate_buffers()
+
+        self.model.unet_engine = Engine("engine/sd_unet_fp16.engine")
+        self.model.unet_engine.load()
+        self.model.unet_engine.activate()
+        unet_profile = {'x_in':(2,4,32,48),
+                        't_in':(2,),
+                        'c_in':(2,77,768),
+                        'control_in_0': (2,320,32,48),
+                        'control_in_1': (2,320,32,48),
+                        'control_in_2': (2,320,32,48),
+                        'control_in_3': (2,320,16,24),
+                        'control_in_4': (2,640,16,24),
+                        'control_in_5': (2,640,16,24),
+                        'control_in_6': (2,640,8,12),
+                        'control_in_7': (2,1280,8,12),
+                        'control_in_8': (2,1280,8,12),
+                        'control_in_9': (2,1280,4,6),
+                        'control_in_10':(2,1280,4,6),
+                        'control_in_11':(2,1280,4,6),
+                        'control_in_12':(2,1280,4,6)}
+        self.model.unet_engine.allocate_buffers()
+        
+        self.vae_engine = Engine("engine/sd_vae_fp16.engine")
+        self.vae_engine.load()
+        self.vae_engine.activate()
+        vae_profile = {'z_in':(1,4,32,48)} 
+        self.vae_engine.allocate_buffers(vae_profile)
 
     def process(
         self,
@@ -469,7 +445,7 @@ class hackathon:
                 clip_transformer_out = self.clip_engine.infer({"input_ids": device_view(tokens.to(dtype=torch.int32))}, self.stream)['last_hidden_state']
 
                 cond = {"c_concat": [control],"c_crossattn": [clip_transformer_out[0:1]],}
-                un_cond = {"c_concat": None if guess_mode else [control],"c_crossattn": [clip_transformer_out[1:2]],}
+                un_cond = {"c_concat": None if guess_mode else [control],"c_crossattn": [clip_transformer_out[0:2]],}
 
             else:
                 cond = {
@@ -499,7 +475,7 @@ class hackathon:
                 else ([strength] * 13)
             )  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
             samples, intermediates = self.ddim_sampler.sample(
-                12,
+                10,
                 num_samples,
                 shape,
                 cond,

@@ -334,8 +334,8 @@ class ControlLDM(LatentDiffusion):
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
         else:
             if self.acc_control_stage:
-                hint_in = torch.cat(cond['c_concat'], 1) 
-                control_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'h_in':device_view(hint_in.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.int32)),'c_in':device_view(cond_txt.to(dtype=torch.float32))}
+                hint_in = torch.cat(cond['c_concat'], 1).repeat(2, 1, 1, 1)
+                control_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'h_in':device_view(hint_in.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.float32)),'c_in':device_view(cond_txt.to(dtype=torch.float32))}
                 output_dict = self.control_engine.infer(control_input_dict,self.stream)
                 control_keys = ['out_{}'.format(i) for i in range(13)]
                 control = [output_dict[key].to(dtype=torch.float32) for key in control_keys]
@@ -348,10 +348,9 @@ class ControlLDM(LatentDiffusion):
                 eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control)
             else:
                 # import ipdb; ipdb.set_trace()
-                unet_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.int32)),'c_in':device_view(cond_txt.to(dtype=torch.float32)),}
+                unet_input_dict = {'x_in':device_view(x_noisy.to(dtype=torch.float32)),'t_in':device_view(t.to(dtype=torch.float32)),'c_in':device_view(cond_txt.to(dtype=torch.float32)),}
                 unet_input_dict.update({'control_in_{}'.format(i):device_view(control[i].to(dtype=torch.float32)) for i in range(13)})
                 eps = self.unet_engine.infer(unet_input_dict, self.stream)['diffution_model_output'].to(dtype=torch.float32)
-                
         return eps
 
     @torch.no_grad()
